@@ -4,7 +4,14 @@ class ClangOption(object):
                      '-Qunused-arguments'
                      ]
 
+class FileInfo(object):
+    file_path = None
+    file_name = None
 
+    def __init__(self, file_path, file_name):
+        super(self)
+        self.file_path = file_path
+        self.file_name = file_name
 
 class ClangCMDGenerator(object):
     proj = None # PBXProj
@@ -35,14 +42,32 @@ class ClangCMDGenerator(object):
         else:
             fp = file_name_or_path
             fn = file_name_or_path(fp)
-        return self._cmd(fp, fn)
+        return self._cmd(FileInfo(fp, fn))
 
 
-    def _cmd(self, file_path, file_name):
-        pass
+    def _cmd(self, fileinfo):
+        args = []
+        args += self.clang_path()
+        args += self.x()
+        args += self.arch()
+        args += self.std()
+        args += self.arc()
+        args += self.O0()
+        args += self.D()
+        args += self.isysroot()
+        args += self.fobjc_abi_version()
+        args += self.fobjc_legacy_dispatch()
+        args += self.iquote()
+        args += self.F()
+        args += self.MMD()
+        args += self.MT()
+        args += self.dependencies()
+        args += self.MF()
+        args += self.serialize_diagnostics()
+        args += self.c()
+        args += self.o()
 
-
-
+        return args
 
 
 
@@ -62,10 +87,95 @@ class ClangCMDGenerator(object):
     def is_filename(self, file_name_or_path):
         pass
 
+    def clang_path(self):
+        return 'clang'
+
+    ### Language Selection and Mode Options
+    def x(self):
+        opts = ['-x']
+
+        return opts
+
+    def std(self):
+        opts = ['-std', '']
+        return opts
+
+
     ### Target Selection Options
-    @property
+
     def arch(self):
         return ['-arch', 'i386']
+
+    ### Search Headers Options
+
+
+    def iquote(self):
+        return []
+
+
+    def isysroot(self):
+        return []
+
+
+    def I(self):
+        return []
+
+    ### Framework Search Options
+
+
+    def F(self):
+        return []
+
+    ### Driver Options
+    def o(self):
+        return ['-o']
+
+    ### Objective-C Options
+    def arc(self):
+
+        # fobjc-no-arc
+
+        return ['-fobjc-arc']
+
+    def fobjc_abi_version(self):
+        return ['-fobjc-abi-version=2']
+
+    def fobjc_legacy_dispatch(self):
+        return ['-fobjc-legacy-dispatch']
+
+
+    ### Code Generation Options
+    def O0(self):
+        return ['-O0']
+
+    ### Preprocessor Options
+    def D(self):
+        return []
+
+    ### Stage Selection Options
+    def c(self):
+        return ['-c']
+
+    ### Anoyomus Options
+
+    def MMD(self):
+        return ['-MMD']
+
+    def MT(self):
+        return ['-MT']
+
+    def dependencies(self):
+        return ['dependencies']
+
+    def MF(self):
+        return ['-MF']
+
+    def serialize_diagnostics(self):
+        return ['-serialize-diagnostics']
+
+
+
+
 """
 
 clang
