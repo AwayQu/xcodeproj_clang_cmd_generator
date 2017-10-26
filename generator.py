@@ -1,8 +1,10 @@
+import PBXConst
 
 class ClangOption(object):
     DriverOptions = ['-o',
                      '-Qunused-arguments'
                      ]
+
 
 class FileInfo(object):
     file_path = None
@@ -13,25 +15,19 @@ class FileInfo(object):
         self.file_path = file_path
         self.file_name = file_name
 
+
 class ClangCMDGenerator(object):
-    proj = None # PBXProj
+    proj_proxy = None  # PBXProjProxy
 
-    target_name = None # str target
-    configuration = None #  srt Debug Release
+    target_name = None  # str target
+    configuration = None  # srt Debug Release
 
-    def __init__(self, proj, **kwargs):
+    def __init__(self, proj_proxy, **kwargs):
         super(self)
 
         kwargs.get('target', None)
 
-
-        self.proj = proj
-
-    @property
-    def project_file(self):
-        if self.proj:
-            return self.proj.project_file
-
+        self.proj_proxy = proj_proxy
 
     def cmd(self, file_name_or_path):
         fn = None
@@ -44,11 +40,10 @@ class ClangCMDGenerator(object):
             fn = file_name_or_path(fp)
         return self._cmd(FileInfo(fp, fn))
 
-
     def _cmd(self, fileinfo):
         args = []
         args += self.clang_path()
-        args += self.x()
+        args += self.x(fileinfo)
         args += self.arch()
         args += self.std()
         args += self.arc()
@@ -69,9 +64,6 @@ class ClangCMDGenerator(object):
 
         return args
 
-
-
-
     def get_name(self, file_path):
         return ""
 
@@ -90,47 +82,56 @@ class ClangCMDGenerator(object):
     def clang_path(self):
         return 'clang'
 
-    ### Language Selection and Mode Options
-    def x(self):
+    # Language Selection and Mode Options
+    def x(self, file_info):
         opts = ['-x']
 
+        language_type = self.proj_proxy.get_ref_file_dic().get(file_info.file_name)
+        if language_type == PBXConst.PBXConst_REFERENCE_FILE_TYPE_C:
+            opts.append('c')
+        elif language_type == PBXConst.PPBConst_REFERENCE_FILE_TYPE_OBJC:
+            opts.append('objective-c')
+        elif language_type == PBXConst.PPBConst_REFERENCE_FILE_TYPE_OBJCPP:
+            opts.append('objective-c++')
+        elif language_type == PBXConst.PPBConst_REFERENCE_FILE_TYPE_CPP:
+            # TODO: cpp
+            raise SystemError('no implement')
+        else:
+            raise SystemExit('unknown type')
         return opts
 
     def std(self):
-        opts = ['-std', '']
+        # TODO: check std type
+        opts = ['-std', 'gnu99']
         return opts
 
-
-    ### Target Selection Options
+    # Target Selection Options
 
     def arch(self):
         return ['-arch', 'i386']
 
-    ### Search Headers Options
-
+    # Search Headers Options
 
     def iquote(self):
         return []
 
-
     def isysroot(self):
         return []
-
 
     def I(self):
         return []
 
-    ### Framework Search Options
+    # Framework Search Options
 
 
     def F(self):
         return []
 
-    ### Driver Options
+    # Driver Options
     def o(self):
         return ['-o']
 
-    ### Objective-C Options
+    # Objective-C Options
     def arc(self):
 
         # fobjc-no-arc
@@ -143,20 +144,19 @@ class ClangCMDGenerator(object):
     def fobjc_legacy_dispatch(self):
         return ['-fobjc-legacy-dispatch']
 
-
-    ### Code Generation Options
+    # Code Generation Options
     def O0(self):
         return ['-O0']
 
-    ### Preprocessor Options
+    # Preprocessor Options
     def D(self):
         return []
 
-    ### Stage Selection Options
+    # Stage Selection Options
     def c(self):
         return ['-c']
 
-    ### Anoyomus Options
+    # Anoyomus Options
 
     def MMD(self):
         return ['-MMD']
@@ -174,12 +174,13 @@ class ClangCMDGenerator(object):
         return ['-serialize-diagnostics']
 
 
-
+if __name__ == '__main__':
+    pass
 
 """
 
 clang
--###
+-#
 -x
 objective-c
 -arch
