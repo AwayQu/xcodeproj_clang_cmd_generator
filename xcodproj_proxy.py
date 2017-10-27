@@ -7,10 +7,12 @@ from PBXConst import PBXConst_ISA_PBXSourcesBuildPhase, PPBConst_REFERENCE_FILE_
 
 class PBXFileReferenceProxy(object):
     ref = None
+    build_file = None
 
-    def __init__(self, ref):
+    def __init__(self, ref, build_file):
         super(PBXFileReferenceProxy, self).__init__()
         self.ref = ref
+        self.build_file = build_file
 
     def language_type(self):
         file_type = self.ref.get(PBX_Constants.kPBX_REFERENCE_lastKnownFileType)
@@ -18,8 +20,17 @@ class PBXFileReferenceProxy(object):
             file_type = self.ref.get(PBX_Constants.kPBX_REFERENCE_explicitFileType)
         return file_type
 
+    def path(self):
+        return self.ref.get(PBX_Constants.kPBX_REFERENCE_path)
+
+    def compiler_flags(self):
+        settings = self.build_file.get(PBX_Constants.kPBX_BUILDFILE_settings)
+        if settings:
+            return settings.get(u"COMPILER_FLAGS", "")
+        return ""
+
     def name(self):
-        path = self.ref.get(PBX_Constants.kPBX_REFERENCE_path)
+        path = self.path()
         try:
             name = path.split('/')[-1]
             return name
@@ -33,6 +44,11 @@ class PBXProjProxy(object):
     def __init__(self, proj):
         super(PBXProjProxy, self).__init__()
         self.proj = proj  # type xcodeproj
+
+    @property
+    def project_path(self):
+        paths = self.project_file.pbx_file_path.split('/')
+        return '/'.join(paths[:-2])
 
     @property
     def project_file(self):
@@ -80,7 +96,7 @@ class PBXProjProxy(object):
             try:
                 name = path.split('/')[-1]
                 if name == file_name:
-                    return PBXFileReferenceProxy(file_ref)
+                    return PBXFileReferenceProxy(file_ref, f)
             except:
                 pass
         return None
@@ -102,18 +118,16 @@ class PBXProjProxy(object):
                 name = path.split('/')[-1]
                 if not name:
                     continue
-                dic[name] = PBXFileReferenceProxy(file_ref)
+                dic[name] = PBXFileReferenceProxy(file_ref, f)
             except:
                 pass
         return dic
 
 
 
-
-
 if __name__ == '__main__':
-    proj = xcodeproj.xcodeproj('/Users/away/Desktop/analyzer/infer-0.12.0/examples/ios_hello/HelloWorldApp.xcodeproj')
-    # proj = xcodeproj.xcodeproj('/home/administrator/下载/infer/examples/ios_hello/HelloWorldApp.xcodeproj')
+    # proj = xcodeproj.xcodeproj('/Users/away/Desktop/analyzer/infer-0.12.0/examples/ios_hello/HelloWorldApp.xcodeproj')
+    proj = xcodeproj.xcodeproj('./test_res/ios_hello/HelloWorldApp.xcodeproj')
 
     proxy = PBXProjProxy(proj)
     proxy.targets()
@@ -142,4 +156,7 @@ if __name__ == '__main__':
     # file_type
     for v in file_ref_dic.values():
         assert PPBConst_REFERENCE_FILE_TYPE_OBJC == v.language_type()
+
+    # project_path
+    assert proxy.project_path == u'./test_res/ios_hello'
     print ''

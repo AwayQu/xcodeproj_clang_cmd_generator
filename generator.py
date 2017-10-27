@@ -1,3 +1,5 @@
+
+
 import PBXConst
 
 class ClangOption(object):
@@ -11,7 +13,7 @@ class FileInfo(object):
     file_name = None
 
     def __init__(self, file_path, file_name):
-        super(self)
+        super(FileInfo, self).__init__()
         self.file_path = file_path
         self.file_name = file_name
 
@@ -23,10 +25,9 @@ class ClangCMDGenerator(object):
     configuration = None  # srt Debug Release
 
     def __init__(self, proj_proxy, **kwargs):
-        super(self)
+        super(ClangCMDGenerator, self).__init__()
 
-        kwargs.get('target', None)
-
+        self.target_name = kwargs.get('target', None)
         self.proj_proxy = proj_proxy
 
     def cmd(self, file_name_or_path):
@@ -46,7 +47,7 @@ class ClangCMDGenerator(object):
         args += self.x(fileinfo)
         args += self.arch()
         args += self.std()
-        args += self.arc()
+        args += self.compiler_flags(fileinfo)
         args += self.O0()
         args += self.D()
         args += self.isysroot()
@@ -65,19 +66,41 @@ class ClangCMDGenerator(object):
         return args
 
     def get_name(self, file_path):
-        return ""
+        try:
+            return file_path.split('/')[-1]
+        except:
+            raise SystemError('not a path')
+
 
     def get_path(self, file_name):
-        return ""
+        try:
+            import os
+            import fnmatch
+
+            def iterfindfiles(path, fnexp):
+                for root, dirs, files in os.walk(path):
+                    for filename in fnmatch.filter(files, fnexp):
+                        yield os.path.join(root, filename)
+            for filename in iterfindfiles(self.proj_proxy.project_path, file_name):
+                return filename
+        except:
+            raise SystemError('file not exist')
 
     def file_path_exist(self, file_path):
-        pass
+        import os
+        return os.path.exists(file_path)
 
     def file_exist(self, file_name):
-        pass
+        path = self.get_path(file_name)
+        if not path:
+            return False
+        import os
+        return os.path.exists(path)
 
     def is_filename(self, file_name_or_path):
-        pass
+        if u'/' in file_name_or_path:
+            return False
+        return True
 
     def clang_path(self):
         return 'clang'
@@ -86,7 +109,10 @@ class ClangCMDGenerator(object):
     def x(self, file_info):
         opts = ['-x']
 
-        language_type = self.proj_proxy.get_ref_file_dic().get(file_info.file_name)
+        ref = self.proj_proxy.get_ref_file_dic(self.target_name).get(file_info.file_name)
+        if not ref:
+            raise SystemError('no file')
+        language_type = ref.language_type()
         if language_type == PBXConst.PBXConst_REFERENCE_FILE_TYPE_C:
             opts.append('c')
         elif language_type == PBXConst.PPBConst_REFERENCE_FILE_TYPE_OBJC:
@@ -116,7 +142,9 @@ class ClangCMDGenerator(object):
         return []
 
     def isysroot(self):
-        return []
+        return [u'-isysroot',
+                u'/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk']
+
 
     def I(self):
         return []
@@ -129,24 +157,26 @@ class ClangCMDGenerator(object):
 
     # Driver Options
     def o(self):
-        return ['-o']
+        return [u'-o']
 
     # Objective-C Options
-    def arc(self):
-
+    def compiler_flags(self, file_info):
         # fobjc-no-arc
-
-        return ['-fobjc-arc']
+        # -fobjc-arc
+        ref_proxy = self.proj_proxy.get_ref_file_dic(self.target_name).get(file_info.file_name)
+        s = ref_proxy.compiler_flags()
+        opts = s.split(" ")
+        return opts
 
     def fobjc_abi_version(self):
-        return ['-fobjc-abi-version=2']
+        return [u'-fobjc-abi-version=2']
 
     def fobjc_legacy_dispatch(self):
-        return ['-fobjc-legacy-dispatch']
+        return [u'-fobjc-legacy-dispatch']
 
     # Code Generation Options
     def O0(self):
-        return ['-O0']
+        return [u'-O0']
 
     # Preprocessor Options
     def D(self):
@@ -154,27 +184,56 @@ class ClangCMDGenerator(object):
 
     # Stage Selection Options
     def c(self):
-        return ['-c']
+        return [u'-c']
 
     # Anoyomus Options
 
     def MMD(self):
-        return ['-MMD']
+        return [u'-MMD']
 
     def MT(self):
-        return ['-MT']
+        return [u'-MT']
 
     def dependencies(self):
-        return ['dependencies']
+        return [u'dependencies']
 
     def MF(self):
-        return ['-MF']
+        return [u'-MF']
 
     def serialize_diagnostics(self):
-        return ['-serialize-diagnostics']
+        return [u'-serialize-diagnostics']
 
 
 if __name__ == '__main__':
+    from xcodeproj import xcodeproj
+    from xcodproj_proxy import PBXProjProxy
+    proj = xcodeproj.xcodeproj('./test_res/ios_hello/HelloWorldApp.xcodeproj')
+
+    proxy = PBXProjProxy(proj)
+
+    cmd_generator = ClangCMDGenerator(proxy, target=u'HelloWorldApp')
+
+    # is_filename
+    assert cmd_generator.is_filename('main.m')
+    assert not cmd_generator.is_filename('./ios_hello/HelloWorldApp/main.m')
+
+    assert cmd_generator.get_path('main.m') == u'./test_res/ios_hello/HelloWorldApp/main.m'
+
+    # file exists
+    assert cmd_generator.file_exist('main.m')
+    assert not cmd_generator.file_exist('ma.m')
+
+    # file path exists
+    assert not cmd_generator.file_path_exist('main.m')
+    assert cmd_generator.file_path_exist(u'./test_res/ios_hello/HelloWorldApp/main.m')
+
+    # -x
+    x = cmd_generator.x(file_info=FileInfo(u'./test_res/ios_hello/HelloWorldApp/main.m', u'main.m'))
+    assert ['-x', 'objective-c'] == x
+
+    # compiler_args
+    compile_args = cmd_generator.compiler_flags(FileInfo(u'./test_res/ios_hello/HelloWorldApp/Appdelegate.m', u'AppDelegate.m'))
+    assert [u'-fobjc-arc'] == compile_args
     pass
 
 """
