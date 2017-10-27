@@ -11,11 +11,16 @@ class ClangOption(object):
 class FileInfo(object):
     file_path = None
     file_name = None
+    file_relative_path = None
+    name = None
 
     def __init__(self, file_path, file_name):
         super(FileInfo, self).__init__()
-        self.file_path = file_path
+        import os
+        self.file_relative_path = file_path
+        self.file_path = os.path.abspath(file_path)
         self.file_name = file_name
+        self.name = self.file_name.split('.')[0]
 
 
 class ClangCMDGenerator(object):
@@ -39,7 +44,7 @@ class ClangCMDGenerator(object):
             fp = self.get_path(fn)
         else:
             fp = file_name_or_path
-            fn = file_name_or_path(fp)
+            fn = self.get_name(fp)
         return self._cmd(FileInfo(fp, fn))
 
     def _cmd(self, fileinfo):
@@ -59,10 +64,10 @@ class ClangCMDGenerator(object):
         args += self.MMD()
         args += self.MT()
         args += self.dependencies()
-        args += self.MF()
-        args += self.serialize_diagnostics()
-        args += self.c()
-        args += self.o()
+        args += self.MF(fileinfo)
+        args += self.serialize_diagnostics(fileinfo)
+        args += self.c(fileinfo)
+        args += self.o(fileinfo)
 
         return args
 
@@ -104,7 +109,7 @@ class ClangCMDGenerator(object):
         return True
 
     def clang_path(self):
-        return 'clang'
+        return [u'clang']
 
     # Language Selection and Mode Options
     def x(self, file_info):
@@ -129,7 +134,7 @@ class ClangCMDGenerator(object):
 
     def std(self):
         # TODO: check std type
-        opts = ['-std', 'gnu99']
+        opts = ['-std=gnu99']
         return opts
 
     # Target Selection Options
@@ -140,7 +145,12 @@ class ClangCMDGenerator(object):
     # Search Headers Options
 
     def iquote(self):
-        return []
+        import os
+        build_header_path = self.proj_proxy.build_header_map_path(self.target_name)
+        product_name = self.proj_proxy.product_name(self.target_name, self.configuration)
+        opts = [u'-iquote', os.path.join(build_header_path, u'{}-generated-files.hmap'.format(product_name))]
+        opts += [u'-iquote', os.path.join(build_header_path, u'{}-project-headers.hmap'.format(product_name))]
+        return opts
 
     def isysroot(self):
         return [u'-isysroot',
@@ -148,6 +158,18 @@ class ClangCMDGenerator(object):
 
 
     def I(self):
+        import os
+        build_header_path = self.proj_proxy.build_header_map_path(self.target_name)
+        product_name = self.proj_proxy.product_name(self.target_name, self.configuration)
+        opts = [u'-I' + os.path.join(build_header_path, u'{}-own-target-headers.hmap'.format(product_name))]
+        opts += [u'-I' + os.path.join(build_header_path, u'{}-all-target-headers.hmap'.format(product_name))]
+        opts += [u'-I'+ os.path.join(self.proj_proxy.build_path(), u'include')]
+
+        # TODO: Pod Headers
+        # TODO: DerivedSources
+        return opts
+
+    def include(self):
         return []
 
     # Framework Search Options
@@ -157,8 +179,9 @@ class ClangCMDGenerator(object):
         return []
 
     # Driver Options
-    def o(self):
-        return [u'-o']
+    def o(self, fileinfo):
+        import os
+        return [u'-o', os.path.join(self.proj_proxy.intermediates_path(self.target_name), fileinfo.name + u'.o')]
 
     # Objective-C Options
     def compiler_flags(self, file_info):
@@ -184,8 +207,9 @@ class ClangCMDGenerator(object):
         return []
 
     # Stage Selection Options
-    def c(self):
-        return [u'-c']
+    def c(self, fileinfo):
+        import os
+        return [u'-c', fileinfo.file_path]
 
     # Anoyomus Options
 
@@ -198,11 +222,13 @@ class ClangCMDGenerator(object):
     def dependencies(self):
         return [u'dependencies']
 
-    def MF(self):
-        return [u'-MF']
+    def MF(self, fileinfo):
+        import os
+        return [u'-MF', os.path.join(self.proj_proxy.intermediates_path(self.target_name), fileinfo.name + u'.d')]
 
-    def serialize_diagnostics(self):
-        return [u'-serialize-diagnostics']
+    def serialize_diagnostics(self, fileinfo):
+        import os
+        return [u'-serialize-diagnostics', os.path.join(self.proj_proxy.intermediates_path(self.target_name), fileinfo.name + u'.dia')]
 
 
 if __name__ == '__main__':
@@ -212,13 +238,13 @@ if __name__ == '__main__':
 
     proxy = PBXProjProxy(proj)
 
-    cmd_generator = ClangCMDGenerator(proxy, target=u'HelloWorldApp')
+    cmd_generator = ClangCMDGenerator(proxy, target=u'HelloWorldApp', configuration=u'Debug')
 
     # is_filename
     assert cmd_generator.is_filename('main.m')
     assert not cmd_generator.is_filename('./ios_hello/HelloWorldApp/main.m')
-
-    assert cmd_generator.get_path('main.m') == u'./test_res/ios_hello/HelloWorldApp/main.m'
+    import os
+    assert cmd_generator.get_path('main.m') == os.path.abspath(u'./test_res/ios_hello/HelloWorldApp/main.m')
 
     # file exists
     assert cmd_generator.file_exist('main.m')
@@ -233,8 +259,34 @@ if __name__ == '__main__':
     assert ['-x', 'objective-c'] == x
 
     # compiler_args
-    compile_args = cmd_generator.compiler_flags(FileInfo(u'./test_res/ios_hello/HelloWorldApp/Appdelegate.m', u'AppDelegate.m'))
+    appdelegate_info = FileInfo(u'./test_res/ios_hello/HelloWorldApp/Appdelegate.m', u'AppDelegate.m')
+    compile_args = cmd_generator.compiler_flags(appdelegate_info)
     assert [u'-fobjc-arc'] == compile_args
+
+    # I
+    I = cmd_generator.I()
+
+    # iquote
+    iquote = cmd_generator.iquote()
+
+    # FM
+    MF = cmd_generator.MF(appdelegate_info)
+
+    # diagnostics
+    diagnostics = cmd_generator.serialize_diagnostics(appdelegate_info)
+
+    # c
+    c = cmd_generator.c(appdelegate_info)
+
+    # o
+    o = cmd_generator.o(appdelegate_info)
+
+    cmd = cmd_generator.cmd(u'./test_res/ios_hello/HelloWorldApp/main.m')
+
+
+    cmd = cmd_generator.cmd(u'AppDelegate.m')
+
+    print ' '.join(cmd)
     pass
 
 """

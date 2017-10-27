@@ -39,7 +39,6 @@ class PBXFileReferenceProxy(object):
         return None
 
 
-
 class PBXProjProxy(object):
     proj = None
 
@@ -50,7 +49,10 @@ class PBXProjProxy(object):
     @property
     def project_path(self):
         paths = self.project_file.pbx_file_path.split('/')
-        return '/'.join(paths[:-2])
+        rel_path = '/'.join(paths[:-2])
+        import os
+        abs_path = os.path.abspath(rel_path)
+        return abs_path
 
     @property
     def project_name(self):
@@ -94,6 +96,36 @@ class PBXProjProxy(object):
                 return build_settings.get(u"INFOPLIST_FILE")
         return None
 
+    def build_path(self):
+        import os
+        path = self.project_path
+
+        for p in [u'build',
+                  u'{}.build'.format(self.project_name),
+                  u'Debug-iphonesimulator']:
+            path = os.path.join(path, p)
+
+        return path
+
+    def build_header_map_path(self, target_name):
+        import os
+        path = os.path.join(self.build_path(), u'{}.build'.format(target_name))
+        return path
+
+    def intermediates_path(self, target_name):
+        import os
+        path = self.project_path
+
+        for p in [u'build',
+                  # u'Intermediates', ?
+                  u'{}.build'.format(self.project_name),
+                  u'Debug-iphonesimulator',
+                  u'{}.build'.format(target_name),
+                  u'Objects-normal',
+                  u'i386']:
+            path = os.path.join(path, p)
+        return path
+
     @property
     def project_file(self):
         return self.proj.project_file  # type PBXProj
@@ -132,7 +164,7 @@ class PBXProjProxy(object):
         files = phase.get(PBX_Constants.kPBX_PHASE_files)
         if not files:
             return None
-        for f in files: # type PBXBuildFile
+        for f in files:  # type PBXBuildFile
             file_ref = f.get(PBX_Constants.kPBX_BUILDFILE_fileRef)
             if not file_ref:
                 continue
@@ -168,7 +200,6 @@ class PBXProjProxy(object):
         return dic
 
 
-
 if __name__ == '__main__':
     # proj = xcodeproj.xcodeproj('/Users/away/Desktop/analyzer/infer-0.12.0/examples/ios_hello/HelloWorldApp.xcodeproj')
     proj = xcodeproj.xcodeproj('./test_res/ios_hello/HelloWorldApp.xcodeproj')
@@ -201,18 +232,24 @@ if __name__ == '__main__':
     for v in file_ref_dic.values():
         assert PPBConst_REFERENCE_FILE_TYPE_OBJC == v.language_type()
 
+    import os
     # project_path
-    assert proxy.project_path == u'./test_res/ios_hello'
+    assert proxy.project_path == os.path.abspath(u'./test_res/ios_hello')
 
     # project name
-    assert proxy.project_name == u'HelloWorldApp'
-
+    assert proxy.project_name == hello_world_app_
 
     # infoplist_file
     assert proxy.info_plist_path(hello_world_app_, u'Debug') == u'HelloWorldApp/Info.plist'
     assert proxy.info_plist_path(hello_world_app_, u'Release') == u'HelloWorldApp/Info.plist'
 
     # production_name
-    assert proxy.product_name(hello_world_app_, u'Debug') == u'HelloWorldApp'
-    assert proxy.product_name(hello_world_app_, u'Release') == u'HelloWorldApp'
+    assert proxy.product_name(hello_world_app_, u'Debug') == hello_world_app_
+    assert proxy.product_name(hello_world_app_, u'Release') == hello_world_app_
+
+    # build_path
+
+    assert proxy.build_path() == os.path.abspath(u'./test_res/ios_hello/build/HelloWorldApp.build/Debug-iphonesimulator')
+    assert proxy.build_header_map_path(
+        hello_world_app_) == os.path.abspath(u'./test_res/ios_hello/build/HelloWorldApp.build/Debug-iphonesimulator/HelloWorldApp.build')
     print ''
