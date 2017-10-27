@@ -28,6 +28,7 @@ class ClangCMDGenerator(object):
         super(ClangCMDGenerator, self).__init__()
 
         self.target_name = kwargs.get('target', None)
+        self.configuration = kwargs.get('configuration', None)
         self.proj_proxy = proj_proxy
 
     def cmd(self, file_name_or_path):

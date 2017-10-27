@@ -38,6 +38,8 @@ class PBXFileReferenceProxy(object):
             pass
         return None
 
+
+
 class PBXProjProxy(object):
     proj = None
 
@@ -49,6 +51,48 @@ class PBXProjProxy(object):
     def project_path(self):
         paths = self.project_file.pbx_file_path.split('/')
         return '/'.join(paths[:-2])
+
+    @property
+    def project_name(self):
+        """
+        file name
+        """
+        paths = self.project_file.pbx_file_path.split('/')
+        file_name = paths[-2]
+        return file_name.split('.')[0]
+
+    def product_name(self, target_name, configuration):
+        self.get_target(target_name)
+        xc_config_list = self.get_target(target_name).get(PBX_Constants.kPBX_TARGET_buildConfigurationList)
+        if not xc_config_list:
+            return None
+        build_configs = xc_config_list.get(PBX_Constants.kPBX_XCCONFIGURATION_buildConfigurations)
+        if not build_configs:
+            return None
+        for config in build_configs:
+            if config.get(u"name") == configuration:
+                build_settings = config.get(u"buildSettings")
+                if not build_configs:
+                    return None
+                product_name = build_settings.get(u"PRODUCT_NAME")
+                if product_name == u'$(TARGET_NAME)':
+                    return target_name
+        return None
+
+    def info_plist_path(self, target_name, configuration):
+        xc_config_list = self.get_target(target_name).get(PBX_Constants.kPBX_TARGET_buildConfigurationList)
+        if not xc_config_list:
+            return None
+        build_configs = xc_config_list.get(PBX_Constants.kPBX_XCCONFIGURATION_buildConfigurations)
+        if not build_configs:
+            return None
+        for config in build_configs:
+            if config.get(u"name") == configuration:
+                build_settings = config.get(u"buildSettings")
+                if not build_configs:
+                    return None
+                return build_settings.get(u"INFOPLIST_FILE")
+        return None
 
     @property
     def project_file(self):
@@ -159,4 +203,16 @@ if __name__ == '__main__':
 
     # project_path
     assert proxy.project_path == u'./test_res/ios_hello'
+
+    # project name
+    assert proxy.project_name == u'HelloWorldApp'
+
+
+    # infoplist_file
+    assert proxy.info_plist_path(hello_world_app_, u'Debug') == u'HelloWorldApp/Info.plist'
+    assert proxy.info_plist_path(hello_world_app_, u'Release') == u'HelloWorldApp/Info.plist'
+
+    # production_name
+    assert proxy.product_name(hello_world_app_, u'Debug') == u'HelloWorldApp'
+    assert proxy.product_name(hello_world_app_, u'Release') == u'HelloWorldApp'
     print ''
