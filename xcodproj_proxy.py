@@ -63,8 +63,7 @@ class PBXProjProxy(object):
         file_name = paths[-2]
         return file_name.split('.')[0]
 
-    def product_name(self, target_name, configuration):
-        self.get_target(target_name)
+    def _XCBuildConfiguration(self, target_name, configuration):
         xc_config_list = self.get_target(target_name).get(PBX_Constants.kPBX_TARGET_buildConfigurationList)
         if not xc_config_list:
             return None
@@ -72,29 +71,34 @@ class PBXProjProxy(object):
         if not build_configs:
             return None
         for config in build_configs:
-            if config.get(u"name") == configuration:
-                build_settings = config.get(u"buildSettings")
-                if not build_configs:
-                    return None
-                product_name = build_settings.get(u"PRODUCT_NAME")
-                if product_name == u'$(TARGET_NAME)':
-                    return target_name
+            if config.get(u'name') == configuration:
+                return config
+        return None
+
+    def _baseConfigurationReference(self, target_name, configuration):
+        config = self._XCBuildConfiguration(target_name, configuration)
+        return config.get(PBX_Constants.kPBX_XCBUILDCONFIG_baseConfigurationReference)
+
+
+    def product_name(self, target_name, configuration):
+        config = self._XCBuildConfiguration(target_name, configuration)
+        if not config:
+            return None
+
+        build_settings = config.get(u"buildSettings")
+        if not build_settings:
+            return None
+        product_name = build_settings.get(u"PRODUCT_NAME")
+        if product_name == u'$(TARGET_NAME)':
+            return target_name
         return None
 
     def info_plist_path(self, target_name, configuration):
-        xc_config_list = self.get_target(target_name).get(PBX_Constants.kPBX_TARGET_buildConfigurationList)
-        if not xc_config_list:
+        config = self._XCBuildConfiguration(target_name, configuration)
+        build_settings = config.get(u"buildSettings")
+        if not build_settings:
             return None
-        build_configs = xc_config_list.get(PBX_Constants.kPBX_XCCONFIGURATION_buildConfigurations)
-        if not build_configs:
-            return None
-        for config in build_configs:
-            if config.get(u"name") == configuration:
-                build_settings = config.get(u"buildSettings")
-                if not build_configs:
-                    return None
-                return build_settings.get(u"INFOPLIST_FILE")
-        return None
+        return build_settings.get(u"INFOPLIST_FILE")
 
     def build_path(self):
         import os
@@ -252,4 +256,8 @@ if __name__ == '__main__':
     assert proxy.build_path() == os.path.abspath(u'./test_res/ios_hello/build/HelloWorldApp.build/Debug-iphonesimulator')
     assert proxy.build_header_map_path(
         hello_world_app_) == os.path.abspath(u'./test_res/ios_hello/build/HelloWorldApp.build/Debug-iphonesimulator/HelloWorldApp.build')
+
+
+    # baseConfigurationReference
+    assert not proxy._baseConfigurationReference(hello_world_app_, u'Debug')
     print ''
