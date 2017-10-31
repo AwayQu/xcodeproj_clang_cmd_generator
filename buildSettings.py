@@ -36,10 +36,11 @@ class BuildSettings(object):
 		self.configuration = kwargs.get(u'configuration')
 		self.scheme = kwargs.get(u'scheme')
 		self.derivedDataPath = kwargs.get(u'derivedDataPath')
+		self.read_settings()
 
 	def _cmd(self):
 		opts = [u'xcodebuild']
-		for k,v in enumerate(self.config):
+		for k,v in self.config.items():
 			opts += [u'-{}'.format(k), v]
 		opts += [u'-showBuildSettings']
 		return u' '.join(opts)

@@ -1,6 +1,8 @@
 
 
 import PBXConst
+import buildSettings
+
 
 class ClangOption(object):
     DriverOptions = ['-o',
@@ -35,6 +37,8 @@ class ClangCMDGenerator(object):
         self.target_name = kwargs.get('target', None)
         self.configuration = kwargs.get('configuration', None)
         self.proj_proxy = proj_proxy
+        self.build_settings = buildSettings.BuildSettings(**kwargs)
+
 
     def cmd(self, file_name_or_path):
         fn = None
@@ -176,7 +180,12 @@ class ClangCMDGenerator(object):
 
 
     def F(self):
-        return []
+        s = self.build_settings.get(buildSettings.FRAMEWORK_SEARCH_PATHS)
+        ls = s.split(u' ')
+        opts = []
+        for l  in ls:
+            opts.append(u'-F{}'.format(l[1:-1] if l[0]=='"' else l))
+        return opts
 
     # Driver Options
     def o(self, fileinfo):
